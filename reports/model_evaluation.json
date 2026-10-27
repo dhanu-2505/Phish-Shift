@@ -1,0 +1,63 @@
+{
+  "evaluation": {
+    "confusion_matrix": [
+      [
+        2176,
+        20
+      ],
+      [
+        47,
+        1260
+      ]
+    ],
+    "confusion_matrix_labels": [
+      "Safe Email",
+      "Phishing Email"
+    ],
+    "f1_score": 0.9741012756088133,
+    "false_positive_analysis": {
+      "definition": "FP / (FP + TN), with Phishing Email as the positive class.",
+      "false_positive_rate": 0.009107468123861567,
+      "false_positives": 20,
+      "true_negatives": 2176
+    },
+    "false_positive_rate": 0.009107468123861567,
+    "precision": 0.984375,
+    "recall": 0.9640397857689365
+  },
+  "metadata": {
+    "class_counts_after_deduplication": {
+      "Phishing Email": 6536,
+      "Safe Email": 10977
+    },
+    "dataset_counts": {
+      "blank_text_rows": 3,
+      "conflicting_duplicate_groups": 1,
+      "conflicting_rows_excluded": 533,
+      "duplicate_rows_collapsed": 585,
+      "missing_label_rows": 0,
+      "missing_text_rows": 16,
+      "source_phishing_rows": 7328,
+      "source_rows": 18650,
+      "source_safe_rows": 11322,
+      "usable_unique_rows": 17513
+    },
+    "dataset_license": "LGPL-3.0 (as declared by the Hugging Face dataset mirror)",
+    "dataset_name": "Phishing Email Detection",
+    "dataset_rows_after_deduplication": 17513,
+    "dataset_sha256": "18ef4fff1acb8986f0ab01e83ede6025420c829656af5a377560fce17e153b97",
+    "dataset_source": "https://huggingface.co/datasets/zefang-liu/phishing-email-dataset/resolve/main/Phishing_Email.csv",
+    "dataset_version": "18ef4fff1acb8986f0ab01e83ede6025420c829656af5a377560fce17e153b97",
+    "model_name": "PhishShift TF-IDF Logistic Regression",
+    "model_version": "1.0.0-18ef4fff1acb",
+    "pipeline": "TfidfVectorizer(word 1-2 grams, min_df=2, max_features=100000, sublinear_tf=True) + LogisticRegression(liblinear, max_iter=1000).",
+    "positive_class": "Phishing Email",
+    "preprocessing": "Drop incomplete rows; remove normalized duplicate texts and all messages with conflicting labels before a stratified split. Near-duplicate clustering is not applied; normalized exact duplicates cannot cross the split.",
+    "random_state": 42,
+    "sklearn_version": "1.7.2",
+    "test_rows": 3503,
+    "test_size_fraction": 0.2,
+    "trained_at_utc": "2026-10-26T14:06:19.898715+00:00",
+    "training_rows": 14010
+  }
+}

@@ -1,0 +1,25 @@
+# Local credentials and runtime configuration
+backend/.env
+backend/.env.*
+!backend/.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+!frontend/.env.*.example
+
+# Python environments, caches, test artifacts, and logs
+**/.venv/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.coverage
+**/htmlcov/
+*.log
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+
+# Local dataset and generated model artifact (reproducible from documentation)
+data/Phishing_Email.csv
+backend/models/*.joblib
