@@ -16,9 +16,10 @@ paid resource has been created by these instructions.
   [Render pricing](https://render.com/pricing).
 - TiDB Cloud Starter is a MySQL-compatible candidate with a published free
   monthly quota (25 GiB row storage, 25 GiB columnar storage, and 250 million
-  request units across eligible instances). Usage beyond the quota is billed;
-  this is not an unlimited free database. Starter requires TLS on public
-  connections and uses Let's Encrypt certificates. Its MySQL-compatible
+  request units across eligible instances). Set its spending limit to $0 to
+  avoid paid overage; after the free quota is exhausted, service can be
+  restricted or suspended. Starter requires TLS on public connections and
+  uses Let's Encrypt certificates. Its MySQL-compatible
   connection, TLS, and quota are documented by
   [PingCAP](https://www.pingcap.com/tidb-cloud-starter/) and the
   [connection guide](https://docs.pingcap.com/tidbcloud/connect-to-tidb-cluster-serverless/).
@@ -28,14 +29,15 @@ paid resource has been created by these instructions.
   usage limits and HTTPS included. See [Vercel pricing](https://vercel.com/pricing).
 
 TiDB Cloud Starter is the selected free-quota candidate, not an already
-provisioned database. You accepted the risk of possible usage charges beyond
-its published free quota; check the current usage/billing settings before
-creating it. The application still requires the database
-TLS root certificate to be mounted as a Render Secret File at
+provisioned database. Its official create-instance guide says setting the
+instance spending limit to **$0** keeps it free; at the quota, expect usage
+restrictions or service suspension rather than paid overage. Confirm the
+dashboard shows a $0 spending limit before creating it. The application still
+requires the database TLS root certificate to be mounted as a Render Secret File at
 `/etc/secrets/mysql-ca.pem`; TiDB documents its Let's Encrypt trust chain and
 provides the official ISRG Root X1 certificate. Confirm persistence, the
-account's current quota and overage pricing, and Render outbound-IP allowlist
-settings before creating the database. Do not expose local XAMPP.
+account's current quota and networking settings before creating the database.
+Do not expose local XAMPP.
 
 ## Model build
 
@@ -53,6 +55,29 @@ direct copy of a Kaggle dataset; review the attribution/license notes in
 `data/README.md` before public deployment. The model artifact is generated from
 that checksum-verified source; it is not downloaded from an unverified binary
 source.
+
+## First manual step: create the hosted database
+
+1. Sign in at the [TiDB Cloud console](https://tidbcloud.com/) and open **My
+   TiDB** → **Create Resource**.
+2. Select **Starter** and **MySQL Compatible** (not PostgreSQL-compatible).
+   Choose a region and an instance name.
+3. Keep the instance spending limit at **$0** and confirm the dashboard shows
+   no paid capacity or paid add-on before creating it. If the console does not
+   offer that setting, stop and ask before proceeding.
+4. In **Settings → Networking**, enable the public endpoint only if the
+   instance requires it. Remove the default `Allow_all_public_connections`
+   firewall rule and initially allow only your current public IP. Do not allow
+   `0.0.0.0/0`. After the Render service is created, replace/add the Render
+   service's documented outbound IP ranges; do not broaden access to all IPs.
+5. Do not import data from XAMPP, create application users, or run schema
+   scripts yet. Keep the hostname, port, database username/password, and CA
+   file private; never paste the password into chat. The schema/migration step
+   requires a separate review and explicit approval.
+
+The zero-spend limit may make the database throttle or suspend when its free
+quota is exhausted. It avoids approving paid overage, but does not guarantee
+uninterrupted service.
 
 ## Render service
 
