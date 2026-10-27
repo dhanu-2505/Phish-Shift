@@ -44,19 +44,21 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def load_dataset() -> tuple[list[str], list[str], dict[str, int], dict[str, int]]:
-    if not DATASET_PATH.is_file():
+def load_dataset(
+    dataset_path: Path = DATASET_PATH,
+) -> tuple[list[str], list[str], dict[str, int], dict[str, int]]:
+    if not dataset_path.is_file():
         raise FileNotFoundError(
-            f"Dataset not found at {DATASET_PATH}. See data/README.md for the source."
+            f"Dataset not found at {dataset_path}. See data/README.md for the source."
         )
-    actual_hash = sha256_file(DATASET_PATH)
+    actual_hash = sha256_file(dataset_path)
     if actual_hash != DATASET_SHA256:
         raise ValueError(
             "Dataset SHA-256 does not match the documented source revision; "
             "refusing to train on unverified data."
         )
 
-    frame = pd.read_csv(DATASET_PATH, usecols=["Email Text", "Email Type"])
+    frame = pd.read_csv(dataset_path, usecols=["Email Text", "Email Type"])
     source_row_count = len(frame)
     missing_text_rows = int(frame["Email Text"].isna().sum())
     missing_label_rows = int(frame["Email Type"].isna().sum())
@@ -105,8 +107,12 @@ def load_dataset() -> tuple[list[str], list[str], dict[str, int], dict[str, int]
     return texts, labels, class_counts, dataset_counts
 
 
-def train_and_evaluate() -> tuple[dict, dict]:
-    texts, labels, class_counts, dataset_counts = load_dataset()
+def train_and_evaluate(
+    dataset_path: Path = DATASET_PATH,
+    artifact_path: Path = ARTIFACT_PATH,
+    report_path: Path = REPORT_PATH,
+) -> tuple[dict, dict]:
+    texts, labels, class_counts, dataset_counts = load_dataset(dataset_path)
     x_train, x_test, y_train, y_test = train_test_split(
         texts,
         labels,
@@ -167,7 +173,7 @@ def train_and_evaluate() -> tuple[dict, dict]:
             "definition": "FP / (FP + TN), with Phishing Email as the positive class.",
         },
     }
-    dataset_hash = sha256_file(DATASET_PATH)
+    dataset_hash = sha256_file(dataset_path)
     model_version = f"1.0.0-{dataset_hash[:12]}"
     metadata = {
         "model_name": MODEL_NAME,
@@ -200,11 +206,11 @@ def train_and_evaluate() -> tuple[dict, dict]:
     }
     bundle = {"pipeline": pipeline, "metadata": metadata}
 
-    ARTIFACT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(bundle, ARTIFACT_PATH)
+    artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(bundle, artifact_path)
     report = {"metadata": metadata, "evaluation": metrics}
-    REPORT_PATH.write_text(
+    report_path.write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )

@@ -9,7 +9,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 sys.path.insert(0, str(BACKEND_DIR))
 
 from app import database
-from app.main import database_health
+from app.main import database_health, get_frontend_origins, readiness_health
 
 
 class DatabaseSettingsTests(unittest.TestCase):
@@ -18,6 +18,79 @@ class DatabaseSettingsTests(unittest.TestCase):
             with patch.object(database, "load_dotenv"):
                 with self.assertRaises(database.DatabaseConfigurationError):
                     database.get_database_settings()
+
+    @patch.dict(
+        os.environ,
+        {
+            "APP_ENV": "production",
+            "DB_NAME": "phishshift_db",
+            "DB_HOST": "127.0.0.1",
+            "DB_USER": "remote_user",
+            "DB_PASSWORD": "configured-only-in-test",
+            "DB_ALLOW_EMPTY_PASSWORD": "false",
+        },
+        clear=False,
+    )
+    def test_production_refuses_loopback_database_host(self):
+        with self.assertRaisesRegex(
+            database.DatabaseConfigurationError, "remote database hostname"
+        ):
+            database.get_database_settings()
+
+    @patch.dict(
+        os.environ,
+        {
+            "APP_ENV": "production",
+            "DB_NAME": "phishshift_db",
+            "DB_HOST": "service.localhost.",
+            "DB_USER": "remote_user",
+            "DB_PASSWORD": "configured-only-in-test",
+            "DB_ALLOW_EMPTY_PASSWORD": "false",
+        },
+        clear=False,
+    )
+    def test_production_refuses_localhost_subdomains(self):
+        with self.assertRaisesRegex(
+            database.DatabaseConfigurationError, "remote database hostname"
+        ):
+            database.get_database_settings()
+
+    @patch.dict(
+        os.environ,
+        {
+            "APP_ENV": "production",
+            "DB_NAME": "phishshift_db",
+            "DB_HOST": "db.example.invalid",
+            "DB_USER": "remote_user",
+            "DB_PASSWORD": "",
+            "DB_ALLOW_EMPTY_PASSWORD": "true",
+        },
+        clear=False,
+    )
+    def test_production_refuses_empty_database_password(self):
+        with self.assertRaisesRegex(
+            database.DatabaseConfigurationError, "non-empty password"
+        ):
+            database.get_database_settings()
+
+    @patch.dict(
+        os.environ,
+        {
+            "APP_ENV": "production",
+            "DB_NAME": "phishshift_db",
+            "DB_HOST": "db.example.invalid",
+            "DB_USER": "remote_user",
+            "DB_PASSWORD": "configured-only-in-test",
+            "DB_ALLOW_EMPTY_PASSWORD": "false",
+            "DB_SSL_CA": "",
+        },
+        clear=False,
+    )
+    def test_production_requires_database_ca_certificate(self):
+        with self.assertRaisesRegex(
+            database.DatabaseConfigurationError, "DB_SSL_CA"
+        ):
+            database.get_database_settings()
 
     def test_refuses_database_name_other_than_phishshift_db(self):
         with patch.dict(
@@ -64,6 +137,68 @@ class DatabaseHealthTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 503)
         self.assertNotIn("private configuration detail", response.body.decode())
+
+    @patch("app.main.load_model_bundle")
+    @patch("app.main.check_database_connection")
+    def test_readiness_endpoint_checks_database_and_model(
+        self, check_connection, load_model
+    ):
+        response = readiness_health()
+
+        check_connection.assert_called_once_with()
+        load_model.assert_called_once_with()
+        self.assertEqual(response, {"status": "ok"})
+
+    @patch("app.main.check_database_connection")
+    def test_readiness_endpoint_returns_sanitized_database_failure(self, check_connection):
+        check_connection.side_effect = database.DatabaseConfigurationError(
+            "private configuration detail"
+        )
+
+        response = readiness_health()
+
+        self.assertEqual(response.status_code, 503)
+        self.assertNotIn("private configuration detail", response.body.decode())
+
+
+class ProductionCorsSettingsTests(unittest.TestCase):
+    @patch.dict(
+        os.environ,
+        {
+            "APP_ENV": "production",
+            "FRONTEND_ORIGINS": "https://phishshift.example",
+        },
+        clear=False,
+    )
+    def test_accepts_exact_https_production_origin(self):
+        self.assertEqual(
+            get_frontend_origins(),
+            ["https://phishshift.example"],
+        )
+
+    @patch.dict(
+        os.environ,
+        {
+            "APP_ENV": "production",
+            "FRONTEND_ORIGINS": "*",
+        },
+        clear=False,
+    )
+    def test_rejects_wildcard_production_origin(self):
+        with self.assertRaisesRegex(RuntimeError, "exact HTTPS origins"):
+            get_frontend_origins()
+
+    @patch.dict(
+        os.environ,
+        {
+            "APP_ENV": "production",
+            "FRONTEND_ORIGINS": "https://phishshift.example/",
+        },
+        clear=False,
+    )
+    def test_rejects_production_origin_with_trailing_path(self):
+        with self.assertRaisesRegex(RuntimeError, "exact HTTPS origins"):
+            get_frontend_origins()
 
 
 class DatabaseInitializationTests(unittest.TestCase):

@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: phishshift-api
+    runtime: python
+    rootDir: backend
+    plan: starter
+    buildCommand: python -m pip install -r requirements.txt && python -m scripts.build_model
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health/ready
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.4
+      - key: APP_ENV
+        value: production
+      - key: DB_NAME
+        value: phishshift_db
+      - key: DB_ALLOW_EMPTY_PASSWORD
+        value: "false"
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SSL_CA
+        value: /etc/secrets/mysql-ca.pem
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: AUTH_SESSION_TTL_SECONDS
+        value: "28800"
+      - key: AUTH_COOKIE_SECURE
+        value: "true"
+      - key: AUTH_COOKIE_SAMESITE
+        value: none
+      - key: FRONTEND_ORIGINS
+        sync: false
+      - key: MODEL_EVALUATION_REPORT
+        value: reports/model_evaluation.json

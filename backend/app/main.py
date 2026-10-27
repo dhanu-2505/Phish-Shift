@@ -4,6 +4,7 @@ import os
 import re
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 import mysql.connector
 from argon2.exceptions import HashingError
@@ -42,15 +43,48 @@ from app.model import ModelUnavailableError, load_model_bundle, predict_message
 
 logger = logging.getLogger(__name__)
 app = FastAPI(title="PhishShift Database API", version="0.1.0")
-EVALUATION_REPORT = Path(__file__).resolve().parents[2] / "reports" / "model_evaluation.json"
-frontend_origins = [
-    origin.strip()
-    for origin in os.getenv(
-        "FRONTEND_ORIGINS",
-        "http://localhost:5173,http://127.0.0.1:5173",
-    ).split(",")
-    if origin.strip()
-]
+
+
+def get_frontend_origins() -> list[str]:
+    configured_origins = os.getenv("FRONTEND_ORIGINS", "").strip()
+    if os.getenv("APP_ENV", "development").strip().lower() == "production":
+        if not configured_origins:
+            raise RuntimeError("FRONTEND_ORIGINS must be configured in production.")
+        origins = [origin.strip() for origin in configured_origins.split(",") if origin.strip()]
+        for origin in origins:
+            parsed = urlsplit(origin)
+            if (
+                parsed.scheme != "https"
+                or not parsed.netloc
+                or parsed.path
+                or parsed.query
+                or parsed.fragment
+                or parsed.username
+                or parsed.password
+                or "*" in origin
+            ):
+                raise RuntimeError(
+                    "Production FRONTEND_ORIGINS must contain exact HTTPS origins."
+                )
+        return origins
+
+    return [
+        origin.strip()
+        for origin in (
+            configured_origins
+            or "http://localhost:5173,http://127.0.0.1:5173"
+        ).split(",")
+        if origin.strip()
+    ]
+
+
+EVALUATION_REPORT = Path(
+    os.getenv(
+        "MODEL_EVALUATION_REPORT",
+        str(Path(__file__).resolve().parents[2] / "reports" / "model_evaluation.json"),
+    )
+)
+frontend_origins = get_frontend_origins()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=frontend_origins,
@@ -258,6 +292,20 @@ def model_health():
         "model_name": metadata["model_name"],
         "model_version": metadata["model_version"],
     }
+
+
+@app.get("/health/ready")
+def readiness_health():
+    try:
+        check_database_connection()
+        load_model_bundle()
+    except (DatabaseConfigurationError, mysql.connector.Error, ModelUnavailableError) as exc:
+        logger.warning("Readiness check failed (%s).", type(exc).__name__)
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unavailable", "detail": "Application is not ready."},
+        )
+    return {"status": "ok"}
 
 
 @app.post("/api/predict")

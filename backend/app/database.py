@@ -1,3 +1,4 @@
+import ipaddress
 import os
 import re
 from dataclasses import dataclass
@@ -28,16 +29,39 @@ class DatabaseSettings:
     database: str
     user: str
     password: str
+    ssl_ca: str | None
 
 
 def get_database_settings() -> DatabaseSettings:
     load_dotenv(ENV_FILE, override=False)
 
+    app_environment = os.getenv("APP_ENV", "development").strip().lower()
     database = os.getenv("DB_NAME", EXPECTED_DATABASE).strip()
     if database != EXPECTED_DATABASE:
         raise DatabaseConfigurationError(
             f"DB_NAME must be {EXPECTED_DATABASE!r}; refusing to use another database."
         )
+
+    host = os.getenv("DB_HOST", "127.0.0.1").strip()
+    if not host:
+        raise DatabaseConfigurationError("Set DB_HOST in the backend environment.")
+    if app_environment == "production":
+        try:
+            address = ipaddress.ip_address(host)
+            is_loopback = address.is_loopback or (
+                address.ipv4_mapped is not None
+                and address.ipv4_mapped.is_loopback
+            )
+        except ValueError:
+            normalized_host = host.casefold().rstrip(".")
+            is_loopback = (
+                normalized_host == "localhost"
+                or normalized_host.endswith(".localhost")
+            )
+        if is_loopback:
+            raise DatabaseConfigurationError(
+                "Production DB_HOST must be a remote database hostname or address."
+            )
 
     user = os.getenv("DB_USER", "").strip()
     password = os.getenv("DB_PASSWORD", "")
@@ -51,6 +75,21 @@ def get_database_settings() -> DatabaseSettings:
             "Set DB_PASSWORD in backend/.env, or explicitly set "
             "DB_ALLOW_EMPTY_PASSWORD=true if the account has no password."
         )
+    if app_environment == "production" and (
+        not password or allow_empty_password == "true"
+    ):
+        raise DatabaseConfigurationError(
+            "Production database accounts must use a non-empty password."
+        )
+    ssl_ca = os.getenv("DB_SSL_CA", "").strip()
+    if app_environment == "production" and not ssl_ca:
+        raise DatabaseConfigurationError(
+            "Set DB_SSL_CA to the trusted CA certificate file for the production database."
+        )
+    if ssl_ca and not Path(ssl_ca).is_file():
+        raise DatabaseConfigurationError(
+            "DB_SSL_CA must point to an existing CA certificate file."
+        )
 
     try:
         port = int(os.getenv("DB_PORT", "3306"))
@@ -60,23 +99,35 @@ def get_database_settings() -> DatabaseSettings:
         raise DatabaseConfigurationError("DB_PORT must be between 1 and 65535.")
 
     return DatabaseSettings(
-        host=os.getenv("DB_HOST", "127.0.0.1").strip(),
+        host=host,
         port=port,
         database=database,
         user=user,
         password=password,
+        ssl_ca=ssl_ca or None,
     )
 
 
 def open_database_connection():
     settings = get_database_settings()
+    connection_options = {
+        "host": settings.host,
+        "port": settings.port,
+        "database": settings.database,
+        "user": settings.user,
+        "password": settings.password,
+        "connection_timeout": 5,
+    }
+    if settings.ssl_ca:
+        connection_options.update(
+            {
+                "ssl_ca": settings.ssl_ca,
+                "ssl_verify_cert": True,
+                "ssl_verify_identity": True,
+            }
+        )
     return mysql.connector.connect(
-        host=settings.host,
-        port=settings.port,
-        database=settings.database,
-        user=settings.user,
-        password=settings.password,
-        connection_timeout=5,
+        **connection_options,
     )
 
 
