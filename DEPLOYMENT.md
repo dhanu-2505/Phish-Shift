@@ -7,11 +7,13 @@ paid resource has been created by these instructions.
 ## Pricing and provider constraints checked 2026-10-27
 
 - Render documents that its Free web services are intended for testing and
-  hobby use, not production. They sleep after 15 minutes without traffic, use
-  an ephemeral filesystem, and Render warns that free services making external
-  database/API traffic can be suspended. Review the current
-  [Render pricing](https://render.com/pricing) before selecting a paid compute
-  plan. `render.yaml` uses the paid `starter` plan (0.5 CPU, 512 MB RAM).
+  hobby use, not production. They sleep after 15 minutes without traffic, take
+  about a minute to wake, use an ephemeral filesystem, and Render warns that
+  free services making external database/API traffic can be suspended.
+  `render.yaml` uses Render's `free` plan. This is a public demo configuration,
+  not a production availability promise. See
+  [Render Free services](https://render.com/docs/free) and
+  [Render pricing](https://render.com/pricing).
 - TiDB Cloud Starter is a MySQL-compatible candidate with a published free
   monthly quota (25 GiB row storage, 25 GiB columnar storage, and 250 million
   request units across eligible instances). Usage beyond the quota is billed;
@@ -25,8 +27,10 @@ paid resource has been created by these instructions.
 - Vercel Hobby is currently listed at **$0/month** for personal projects, with
   usage limits and HTTPS included. See [Vercel pricing](https://vercel.com/pricing).
 
-TiDB Cloud Starter is the current low-cost recommendation, not an already
-selected or provisioned database. The application still requires the database
+TiDB Cloud Starter is the selected free-quota candidate, not an already
+provisioned database. You accepted the risk of possible usage charges beyond
+its published free quota; check the current usage/billing settings before
+creating it. The application still requires the database
 TLS root certificate to be mounted as a Render Secret File at
 `/etc/secrets/mysql-ca.pem`; TiDB documents its Let's Encrypt trust chain and
 provides the official ISRG Root X1 certificate. Confirm persistence, the
@@ -52,12 +56,17 @@ source.
 
 ## Render service
 
-`render.yaml` defines the FastAPI service. Import the GitHub repository
-`dhanu-2505/Phish-Shift` in Render and review the Blueprint diff before applying
-it. Applying the Blueprint creates a paid Starter service; do not confirm it
-until you approve the current price in Render's dashboard. The source branch is
-`main`. The build command trains/provisions the model; the start command binds
-to Render's `$PORT`. `/health/ready` checks both the database and model.
+`render.yaml` defines the FastAPI service on Render Free. Import the GitHub
+repository `dhanu-2505/Phish-Shift` in Render and review the Blueprint diff
+before applying it. Confirm the service plan is **Free**; do not approve an
+upgrade. The source branch is `main`. The build command trains/provisions the
+model; the start command binds to Render's `$PORT`. `/health/ready` checks
+both the database and model.
+
+The Free service may sleep, have cold starts, lose runtime filesystem changes,
+and be suspended under Render's external-traffic restrictions. If it is
+suspended or too unreliable, stop rather than upgrading without explicit
+approval.
 
 Set these values privately in Render. The Blueprint generates the session
 secret on Render; do not replace it with a local development secret:
